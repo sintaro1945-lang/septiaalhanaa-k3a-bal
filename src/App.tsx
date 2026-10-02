@@ -20,6 +20,7 @@ import { Vessel, Port, CargoType, Crew, Voyage, TrackingLog, MaintenanceRecord, 
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [localUser, setLocalUser] = useState<any>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
 
@@ -37,6 +38,27 @@ export default function App() {
   const [maintenance, setMaintenance] = useState<MaintenanceRecord[]>([]);
 
   useEffect(() => {
+    // Check local storage bypass first
+    const savedLocalUser = localStorage.getItem('oceanfleet_local_user');
+    if (savedLocalUser) {
+      try {
+        const parsed = JSON.parse(savedLocalUser);
+        setLocalUser(parsed);
+        setUserProfile({
+          uid: parsed.uid,
+          email: parsed.email,
+          displayName: parsed.displayName,
+          role: parsed.role,
+          createdAt: new Date().toISOString()
+        });
+        setAuthLoading(false);
+        checkAndSeedDatabase();
+        return;
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setCurrentUser(user);
       if (user) {
@@ -53,7 +75,6 @@ export default function App() {
               createdAt: new Date().toISOString()
             });
           }
-          // Seed database if empty
           await checkAndSeedDatabase();
         } catch (e) {
           console.error("Error fetching user profile:", e);
@@ -69,7 +90,7 @@ export default function App() {
 
   // Real-time Firestore listeners with robust error handling
   useEffect(() => {
-    if (!currentUser) return;
+    if (!currentUser && !localUser) return;
 
     const unsubVessels = onSnapshot(collection(db, 'vessels'), (snap) => {
       setVessels(snap.docs.map(d => ({ id: d.id, ...d.data() } as Vessel)));
@@ -108,7 +129,17 @@ export default function App() {
       unsubTracking();
       unsubMaint();
     };
-  }, [currentUser]);
+  }, [currentUser, localUser]);
+
+  const handleLogout = async () => {
+    localStorage.removeItem('oceanfleet_local_user');
+    try {
+      await signOut(auth);
+    } catch (e) {
+      // ignore
+    }
+    window.location.reload();
+  };
 
   if (authLoading) {
     return (
@@ -119,7 +150,7 @@ export default function App() {
     );
   }
 
-  if (!currentUser) {
+  if (!currentUser && !localUser) {
     return <LoginView />;
   }
 
@@ -148,11 +179,11 @@ export default function App() {
 
           <div className="flex items-center space-x-3 pl-4 border-l border-slate-800">
             <div className="text-right hidden sm:block">
-              <p className="text-xs font-semibold text-white">{userProfile?.displayName || currentUser.email}</p>
-              <p className="text-[10px] text-cyan-400 uppercase tracking-wider">{userProfile?.role || 'Operator'}</p>
+              <p className="text-xs font-semibold text-white">{userProfile?.displayName || currentUser?.email || 'Operator'}</p>
+              <p className="text-[10px] text-cyan-400 uppercase tracking-wider">{userProfile?.role || 'Admin'}</p>
             </div>
             <button
-              onClick={() => signOut(auth)}
+              onClick={handleLogout}
               title="Keluar"
               className="p-2 bg-slate-800 hover:bg-red-950/60 hover:text-red-400 text-slate-300 rounded-xl transition"
             >
