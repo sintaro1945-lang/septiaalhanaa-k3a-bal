@@ -1,0 +1,6 @@
+{
+  "name": "OceanFleet Pro - Sistem Bisnis & Manajemen Angkutan Laut",
+  "description": "Enterprise Maritime Logistics & Fleet Management System with real-time Firebase database, CRUD master data, voyage transactions, analytics dashboard, live tracking, and automated alerts.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

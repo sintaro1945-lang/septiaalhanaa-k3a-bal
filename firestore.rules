@@ -1,0 +1,144 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+    
+    function incoming() {
+      return request.resource.data;
+    }
+    
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'email', 'role']) &&
+             data.keys().hasOnly(['uid', 'email', 'displayName', 'role', 'createdAt']) &&
+             data.uid is string && data.uid.size() <= 128 &&
+             data.email is string && data.email.size() <= 120 &&
+             data.role is string && data.role in ['admin', 'manager', 'dispatcher', 'captain'];
+    }
+
+    function isValidVessel(data) {
+      return data.keys().hasAll(['name', 'type', 'dwt', 'status']) &&
+             data.keys().hasOnly(['name', 'type', 'dwt', 'speed', 'status', 'currentLocation', 'yearBuilt']) &&
+             data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
+             data.type is string && data.type.size() <= 50 &&
+             data.dwt is number && data.dwt >= 0 &&
+             data.status is string && data.status in ['Berlayar', 'Sandar', 'Perawatan', 'Standby'];
+    }
+
+    function isValidPort(data) {
+      return data.keys().hasAll(['code', 'name', 'country']) &&
+             data.keys().hasOnly(['code', 'name', 'country', 'coordinates']) &&
+             data.code is string && data.code.size() <= 20 &&
+             data.name is string && data.name.size() <= 100 &&
+             data.country is string && data.country.size() <= 50;
+    }
+
+    function isValidCargoType(data) {
+      return data.keys().hasAll(['name', 'category', 'ratePerTon']) &&
+             data.keys().hasOnly(['name', 'category', 'ratePerTon']) &&
+             data.name is string && data.name.size() <= 100 &&
+             data.category is string && data.category.size() <= 50 &&
+             data.ratePerTon is number && data.ratePerTon >= 0;
+    }
+
+    function isValidCrew(data) {
+      return data.keys().hasAll(['name', 'position']) &&
+             data.keys().hasOnly(['name', 'position', 'vesselId', 'phone', 'certification']) &&
+             data.name is string && data.name.size() <= 100 &&
+             data.position is string && data.position.size() <= 50;
+    }
+
+    function isValidVoyage(data) {
+      return data.keys().hasAll(['noVoyage', 'vesselName', 'origin', 'destination', 'status']) &&
+             data.keys().hasOnly(['noVoyage', 'vesselId', 'vesselName', 'origin', 'destination', 'cargoType', 'tonnage', 'revenue', 'status', 'departureDate', 'arrivalDate']) &&
+             data.noVoyage is string && data.noVoyage.size() <= 50 &&
+             data.vesselName is string && data.vesselName.size() <= 100 &&
+             data.origin is string && data.origin.size() <= 100 &&
+             data.destination is string && data.destination.size() <= 100 &&
+             data.status is string && data.status in ['Scheduled', 'In Transit', 'Arrived', 'Delayed'];
+    }
+
+    function isValidTrackingLog(data) {
+      return data.keys().hasAll(['voyageId', 'lat', 'lng', 'weather', 'timestamp']) &&
+             data.keys().hasOnly(['voyageId', 'lat', 'lng', 'speed', 'weather', 'note', 'timestamp']) &&
+             data.voyageId is string && data.voyageId.size() <= 64 &&
+             data.lat is number && data.lng is number &&
+             data.weather is string && data.weather.size() <= 50 &&
+             data.timestamp is string && data.timestamp.size() <= 50;
+    }
+
+    function isValidMaintenance(data) {
+      return data.keys().hasAll(['vesselName', 'type', 'cost', 'date']) &&
+             data.keys().hasOnly(['vesselId', 'vesselName', 'type', 'cost', 'date', 'description']) &&
+             data.vesselName is string && data.vesselName.size() <= 100 &&
+             data.type is string && data.type.size() <= 50 &&
+             data.cost is number && data.cost >= 0 &&
+             data.date is string && data.date.size() <= 50;
+    }
+
+    // Global default-deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    match /users/{userId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && isValidId(userId) && isValidUser(incoming());
+      allow update: if isSignedIn() && isValidId(userId) && isValidUser(incoming());
+      allow delete: if isSignedIn();
+    }
+
+    match /vessels/{vesselId} {
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn() && isValidId(vesselId) && isValidVessel(incoming());
+      allow delete: if isSignedIn() && isValidId(vesselId);
+    }
+
+    match /ports/{portId} {
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn() && isValidId(portId) && isValidPort(incoming());
+      allow delete: if isSignedIn() && isValidId(portId);
+    }
+
+    match /cargoTypes/{cargoTypeId} {
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn() && isValidId(cargoTypeId) && isValidCargoType(incoming());
+      allow delete: if isSignedIn() && isValidId(cargoTypeId);
+    }
+
+    match /crew/{crewId} {
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn() && isValidId(crewId) && isValidCrew(incoming());
+      allow delete: if isSignedIn() && isValidId(crewId);
+    }
+
+    match /voyages/{voyageId} {
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn() && isValidId(voyageId) && isValidVoyage(incoming());
+      allow delete: if isSignedIn() && isValidId(voyageId);
+    }
+
+    match /trackingLogs/{logId} {
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn() && isValidId(logId) && isValidTrackingLog(incoming());
+      allow delete: if isSignedIn() && isValidId(logId);
+    }
+
+    match /maintenance/{maintenanceId} {
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn() && isValidId(maintenanceId) && isValidMaintenance(incoming());
+      allow delete: if isSignedIn() && isValidId(maintenanceId);
+    }
+  }
+}

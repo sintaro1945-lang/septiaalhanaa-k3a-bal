@@ -1,0 +1,151 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile and role",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "displayName": { "type": "string", "maxLength": 100 },
+        "role": { "type": "string", "enum": ["admin", "manager", "dispatcher", "captain"] },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["uid", "email", "role"]
+    },
+    "Vessel": {
+      "title": "Vessel",
+      "description": "Marine vessel master data",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 64 },
+        "name": { "type": "string", "maxLength": 100 },
+        "type": { "type": "string", "maxLength": 50 },
+        "dwt": { "type": "number" },
+        "speed": { "type": "number" },
+        "status": { "type": "string", "enum": ["Berlayar", "Sandar", "Perawatan", "Standby"] },
+        "currentLocation": { "type": "string", "maxLength": 100 },
+        "yearBuilt": { "type": "number" }
+      },
+      "required": ["name", "type", "dwt", "status"]
+    },
+    "Port": {
+      "title": "Port",
+      "description": "Port master data",
+      "type": "object",
+      "properties": {
+        "code": { "type": "string", "maxLength": 20 },
+        "name": { "type": "string", "maxLength": 100 },
+        "country": { "type": "string", "maxLength": 50 },
+        "coordinates": { "type": "string", "maxLength": 50 }
+      },
+      "required": ["code", "name", "country"]
+    },
+    "CargoType": {
+      "title": "CargoType",
+      "description": "Cargo type master data",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "maxLength": 100 },
+        "category": { "type": "string", "maxLength": 50 },
+        "ratePerTon": { "type": "number" }
+      },
+      "required": ["name", "category", "ratePerTon"]
+    },
+    "Crew": {
+      "title": "Crew",
+      "description": "Crew member master data",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "maxLength": 100 },
+        "position": { "type": "string", "maxLength": 50 },
+        "vesselId": { "type": "string", "maxLength": 64 },
+        "phone": { "type": "string", "maxLength": 30 },
+        "certification": { "type": "string", "maxLength": 100 }
+      },
+      "required": ["name", "position"]
+    },
+    "Voyage": {
+      "title": "Voyage",
+      "description": "Voyage and freight transaction manifest",
+      "type": "object",
+      "properties": {
+        "noVoyage": { "type": "string", "maxLength": 50 },
+        "vesselId": { "type": "string", "maxLength": 64 },
+        "vesselName": { "type": "string", "maxLength": 100 },
+        "origin": { "type": "string", "maxLength": 100 },
+        "destination": { "type": "string", "maxLength": 100 },
+        "cargoType": { "type": "string", "maxLength": 100 },
+        "tonnage": { "type": "number" },
+        "revenue": { "type": "number" },
+        "status": { "type": "string", "enum": ["Scheduled", "In Transit", "Arrived", "Delayed"] },
+        "departureDate": { "type": "string" },
+        "arrivalDate": { "type": "string" }
+      },
+      "required": ["noVoyage", "vesselName", "origin", "destination", "status"]
+    },
+    "TrackingLog": {
+      "title": "TrackingLog",
+      "description": "Live GPS and weather tracking logs for voyages",
+      "type": "object",
+      "properties": {
+        "voyageId": { "type": "string", "maxLength": 64 },
+        "lat": { "type": "number" },
+        "lng": { "type": "number" },
+        "speed": { "type": "number" },
+        "weather": { "type": "string", "maxLength": 50 },
+        "note": { "type": "string", "maxLength": 200 },
+        "timestamp": { "type": "string" }
+      },
+      "required": ["voyageId", "lat", "lng", "weather", "timestamp"]
+    },
+    "Maintenance": {
+      "title": "Maintenance",
+      "description": "Vessel maintenance and bunker logs",
+      "type": "object",
+      "properties": {
+        "vesselId": { "type": "string", "maxLength": 64 },
+        "vesselName": { "type": "string", "maxLength": 100 },
+        "type": { "type": "string", "maxLength": 50 },
+        "cost": { "type": "number" },
+        "date": { "type": "string" },
+        "description": { "type": "string", "maxLength": 300 }
+      },
+      "required": ["vesselName", "type", "cost", "date"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "User" },
+      "description": "User profiles"
+    },
+    "/vessels/{vesselId}": {
+      "schema": { "$ref": "Vessel" },
+      "description": "Vessel master data"
+    },
+    "/ports/{portId}": {
+      "schema": { "$ref": "Port" },
+      "description": "Port master data"
+    },
+    "/cargoTypes/{cargoTypeId}": {
+      "schema": { "$ref": "CargoType" },
+      "description": "Cargo type master data"
+    },
+    "/crew/{crewId}": {
+      "schema": { "$ref": "Crew" },
+      "description": "Crew member master data"
+    },
+    "/voyages/{voyageId}": {
+      "schema": { "$ref": "Voyage" },
+      "description": "Voyage transactions"
+    },
+    "/trackingLogs/{logId}": {
+      "schema": { "$ref": "TrackingLog" },
+      "description": "Voyage live tracking logs"
+    },
+    "/maintenance/{maintenanceId}": {
+      "schema": { "$ref": "Maintenance" },
+      "description": "Maintenance and bunker records"
+    }
+  }
+}
