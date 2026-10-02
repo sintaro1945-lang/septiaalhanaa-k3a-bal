@@ -1,17 +1,18 @@
 import React, { useState } from 'react';
 import { Voyage, Vessel, Port, CargoType } from '../types';
-import { db, handleFirestoreError, OperationType } from '../firebase';
-import { collection, addDoc, updateDoc, deleteDoc, doc } from 'firebase/firestore';
-import { Compass, Plus, Edit, Trash2, X, DollarSign, Calendar, MapPin } from 'lucide-react';
+import { Compass, Plus, Edit, Trash2, X } from 'lucide-react';
 
 interface TransactionViewProps {
   voyages: Voyage[];
   vessels: Vessel[];
   ports: Port[];
   cargoTypes: CargoType[];
+  onAddVoyage: (data: Partial<Voyage>) => void;
+  onUpdateVoyage: (id: string, data: Partial<Voyage>) => void;
+  onDeleteVoyage: (id: string) => void;
 }
 
-export default function TransactionView({ voyages, vessels, ports, cargoTypes }: TransactionViewProps) {
+export default function TransactionView({ voyages, vessels, ports, cargoTypes, onAddVoyage, onUpdateVoyage, onDeleteVoyage }: TransactionViewProps) {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingVoyage, setEditingVoyage] = useState<Voyage | null>(null);
   const [formData, setFormData] = useState<Partial<Voyage>>({
@@ -50,27 +51,14 @@ export default function TransactionView({ voyages, vessels, ports, cargoTypes }:
     setModalOpen(true);
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    try {
-      if (editingVoyage && editingVoyage.id) {
-        await updateDoc(doc(db, 'voyages', editingVoyage.id), formData);
-      } else {
-        await addDoc(collection(db, 'voyages'), formData);
-      }
-      setModalOpen(false);
-    } catch (error) {
-      handleFirestoreError(error, editingVoyage ? OperationType.UPDATE : OperationType.CREATE, 'voyages');
+    if (editingVoyage && editingVoyage.id) {
+      onUpdateVoyage(editingVoyage.id, formData);
+    } else {
+      onAddVoyage(formData);
     }
-  };
-
-  const handleDelete = async (id: string) => {
-    if (!confirm('Hapus manifest pelayaran ini?')) return;
-    try {
-      await deleteDoc(doc(db, 'voyages', id));
-    } catch (error) {
-      handleFirestoreError(error, OperationType.DELETE, 'voyages');
-    }
+    setModalOpen(false);
   };
 
   const formatIDR = (num: number) => {
@@ -133,7 +121,7 @@ export default function TransactionView({ voyages, vessels, ports, cargoTypes }:
                   </td>
                   <td className="px-6 py-4 text-right space-x-2">
                     <button onClick={() => handleOpenEdit(voy)} className="p-1.5 bg-slate-800 hover:bg-slate-700 text-cyan-400 rounded-lg"><Edit className="w-4 h-4" /></button>
-                    <button onClick={() => handleDelete(voy.id)} className="p-1.5 bg-slate-800 hover:bg-red-950 text-red-400 rounded-lg"><Trash2 className="w-4 h-4" /></button>
+                    <button onClick={() => { if(confirm('Hapus manifest ini?')) onDeleteVoyage(voy.id); }} className="p-1.5 bg-slate-800 hover:bg-red-950 text-red-400 rounded-lg"><Trash2 className="w-4 h-4" /></button>
                   </td>
                 </tr>
               ))}

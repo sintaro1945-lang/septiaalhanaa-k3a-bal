@@ -1,22 +1,21 @@
 import React, { useState } from 'react';
 import { Vessel, Port, CargoType, Crew } from '../types';
-import { db, handleFirestoreError, OperationType } from '../firebase';
-import { collection, addDoc, updateDoc, deleteDoc, doc } from 'firebase/firestore';
-import { Ship, Anchor, Package, Users, Plus, Edit, Trash2, X, Check } from 'lucide-react';
+import { Ship, Anchor, Package, Users, Plus, Edit, Trash2, X } from 'lucide-react';
 
 interface MasterDataViewProps {
   vessels: Vessel[];
   ports: Port[];
   cargoTypes: CargoType[];
   crewList: Crew[];
+  onAdd: (type: 'vessels' | 'ports' | 'cargo' | 'crew', data: any) => void;
+  onUpdate: (type: 'vessels' | 'ports' | 'cargo' | 'crew', id: string, data: any) => void;
+  onDelete: (type: 'vessels' | 'ports' | 'cargo' | 'crew', id: string) => void;
 }
 
-export default function MasterDataView({ vessels, ports, cargoTypes, crewList }: MasterDataViewProps) {
+export default function MasterDataView({ vessels, ports, cargoTypes, crewList, onAdd, onUpdate, onDelete }: MasterDataViewProps) {
   const [activeSubTab, setActiveSubTab] = useState<'vessels' | 'ports' | 'cargo' | 'crew'>('vessels');
   const [modalOpen, setModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<any>(null);
-
-  // Form states
   const [formData, setFormData] = useState<any>({});
 
   const handleOpenAdd = () => {
@@ -39,40 +38,23 @@ export default function MasterDataView({ vessels, ports, cargoTypes, crewList }:
     setModalOpen(true);
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    try {
-      const colName = activeSubTab === 'vessels' ? 'vessels' :
-                      activeSubTab === 'ports' ? 'ports' :
-                      activeSubTab === 'cargo' ? 'cargoTypes' : 'crew';
-
-      if (editingItem && editingItem.id) {
-        const docRef = doc(db, colName, editingItem.id);
-        await updateDoc(docRef, formData);
-      } else {
-        await addDoc(collection(db, colName), formData);
-      }
-      setModalOpen(false);
-    } catch (error) {
-      handleFirestoreError(error, editingItem ? OperationType.UPDATE : OperationType.CREATE, activeSubTab);
+    if (editingItem && editingItem.id) {
+      onUpdate(activeSubTab, editingItem.id, formData);
+    } else {
+      onAdd(activeSubTab, formData);
     }
+    setModalOpen(false);
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDeleteItem = (id: string) => {
     if (!confirm('Apakah Anda yakin ingin menghapus data ini?')) return;
-    try {
-      const colName = activeSubTab === 'vessels' ? 'vessels' :
-                      activeSubTab === 'ports' ? 'ports' :
-                      activeSubTab === 'cargo' ? 'cargoTypes' : 'crew';
-      await deleteDoc(doc(db, colName, id));
-    } catch (error) {
-      handleFirestoreError(error, OperationType.DELETE, activeSubTab);
-    }
+    onDelete(activeSubTab, id);
   };
 
   return (
     <div className="space-y-6">
-      {/* Header & Sub-tabs */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold text-white">Master Data Angkutan Laut</h2>
@@ -87,7 +69,6 @@ export default function MasterDataView({ vessels, ports, cargoTypes, crewList }:
         </button>
       </div>
 
-      {/* Navigation tabs */}
       <div className="flex flex-wrap gap-2 border-b border-slate-800 pb-3">
         <button
           onClick={() => setActiveSubTab('vessels')}
@@ -127,7 +108,6 @@ export default function MasterDataView({ vessels, ports, cargoTypes, crewList }:
         </button>
       </div>
 
-      {/* Tables */}
       <div className="bg-slate-900/80 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
         <div className="overflow-x-auto">
           {activeSubTab === 'vessels' && (
@@ -162,7 +142,7 @@ export default function MasterDataView({ vessels, ports, cargoTypes, crewList }:
                     <td className="px-6 py-4">{v.currentLocation}</td>
                     <td className="px-6 py-4 text-right space-x-2">
                       <button onClick={() => handleOpenEdit(v)} className="p-1.5 bg-slate-800 hover:bg-slate-700 text-cyan-400 rounded-lg"><Edit className="w-4 h-4" /></button>
-                      <button onClick={() => handleDelete(v.id)} className="p-1.5 bg-slate-800 hover:bg-red-950 text-red-400 rounded-lg"><Trash2 className="w-4 h-4" /></button>
+                      <button onClick={() => handleDeleteItem(v.id)} className="p-1.5 bg-slate-800 hover:bg-red-950 text-red-400 rounded-lg"><Trash2 className="w-4 h-4" /></button>
                     </td>
                   </tr>
                 ))}
@@ -193,7 +173,7 @@ export default function MasterDataView({ vessels, ports, cargoTypes, crewList }:
                     <td className="px-6 py-4 text-slate-400 font-mono text-xs">{p.coordinates}</td>
                     <td className="px-6 py-4 text-right space-x-2">
                       <button onClick={() => handleOpenEdit(p)} className="p-1.5 bg-slate-800 hover:bg-slate-700 text-cyan-400 rounded-lg"><Edit className="w-4 h-4" /></button>
-                      <button onClick={() => handleDelete(p.id)} className="p-1.5 bg-slate-800 hover:bg-red-950 text-red-400 rounded-lg"><Trash2 className="w-4 h-4" /></button>
+                      <button onClick={() => handleDeleteItem(p.id)} className="p-1.5 bg-slate-800 hover:bg-red-950 text-red-400 rounded-lg"><Trash2 className="w-4 h-4" /></button>
                     </td>
                   </tr>
                 ))}
@@ -224,7 +204,7 @@ export default function MasterDataView({ vessels, ports, cargoTypes, crewList }:
                     <td className="px-6 py-4 font-semibold text-emerald-400">Rp {c.ratePerTon?.toLocaleString('id-ID')}</td>
                     <td className="px-6 py-4 text-right space-x-2">
                       <button onClick={() => handleOpenEdit(c)} className="p-1.5 bg-slate-800 hover:bg-slate-700 text-cyan-400 rounded-lg"><Edit className="w-4 h-4" /></button>
-                      <button onClick={() => handleDelete(c.id)} className="p-1.5 bg-slate-800 hover:bg-red-950 text-red-400 rounded-lg"><Trash2 className="w-4 h-4" /></button>
+                      <button onClick={() => handleDeleteItem(c.id)} className="p-1.5 bg-slate-800 hover:bg-red-950 text-red-400 rounded-lg"><Trash2 className="w-4 h-4" /></button>
                     </td>
                   </tr>
                 ))}
@@ -255,7 +235,7 @@ export default function MasterDataView({ vessels, ports, cargoTypes, crewList }:
                     <td className="px-6 py-4">{cr.certification || '-'}</td>
                     <td className="px-6 py-4 text-right space-x-2">
                       <button onClick={() => handleOpenEdit(cr)} className="p-1.5 bg-slate-800 hover:bg-slate-700 text-cyan-400 rounded-lg"><Edit className="w-4 h-4" /></button>
-                      <button onClick={() => handleDelete(cr.id)} className="p-1.5 bg-slate-800 hover:bg-red-950 text-red-400 rounded-lg"><Trash2 className="w-4 h-4" /></button>
+                      <button onClick={() => handleDeleteItem(cr.id)} className="p-1.5 bg-slate-800 hover:bg-red-950 text-red-400 rounded-lg"><Trash2 className="w-4 h-4" /></button>
                     </td>
                   </tr>
                 ))}
@@ -268,7 +248,6 @@ export default function MasterDataView({ vessels, ports, cargoTypes, crewList }:
         </div>
       </div>
 
-      {/* Add / Edit Modal */}
       {modalOpen && (
         <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-slate-700 w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden">

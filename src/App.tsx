@@ -1,11 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { auth, db, handleFirestoreError, OperationType, signOut } from './firebase';
-import { onAuthStateChanged, User } from 'firebase/auth';
-import { collection, onSnapshot, doc, getDoc } from 'firebase/firestore';
-import { checkAndSeedDatabase } from './seedData';
+import { auth, db } from './firebase';
+import { onAuthStateChanged, signOut, User } from 'firebase/auth';
+import { collection, onSnapshot, doc, getDoc, addDoc, updateDoc, deleteDoc, setDoc } from 'firebase/firestore';
 import { 
   Ship, Anchor, Compass, Package, Users, FileText, Wrench, 
-  LayoutDashboard, LogOut, Bell, Sparkles, Shield, Waves, UserCheck 
+  LayoutDashboard, LogOut, Sparkles, Waves 
 } from 'lucide-react';
 
 import LoginView from './components/LoginView';
@@ -17,6 +16,11 @@ import MaintenanceView from './components/MaintenanceView';
 import ReportsView from './components/ReportsView';
 import AiAssistantModal from './components/AiAssistantModal';
 import { Vessel, Port, CargoType, Crew, Voyage, TrackingLog, MaintenanceRecord, UserProfile } from './types';
+import { 
+  initialVessels, initialPorts, initialCargoTypes, initialCrew, 
+  initialVoyages, initialTrackingLogs, initialMaintenance, 
+  loadFromStorage, saveToStorage 
+} from './storage';
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -28,17 +32,16 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'master' | 'transactions' | 'tracking' | 'maintenance' | 'reports'>('dashboard');
   const [aiModalOpen, setAiModalOpen] = useState(false);
 
-  // Data states from real Firebase
-  const [vessels, setVessels] = useState<Vessel[]>([]);
-  const [ports, setPorts] = useState<Port[]>([]);
-  const [cargoTypes, setCargoTypes] = useState<CargoType[]>([]);
-  const [crewList, setCrewList] = useState<Crew[]>([]);
-  const [voyages, setVoyages] = useState<Voyage[]>([]);
-  const [trackingLogs, setTrackingLogs] = useState<TrackingLog[]>([]);
-  const [maintenance, setMaintenance] = useState<MaintenanceRecord[]>([]);
+  // Data states with localStorage fallback
+  const [vessels, setVessels] = useState<Vessel[]>(() => loadFromStorage('vessels', initialVessels));
+  const [ports, setPorts] = useState<Port[]>(() => loadFromStorage('ports', initialPorts));
+  const [cargoTypes, setCargoTypes] = useState<CargoType[]>(() => loadFromStorage('cargoTypes', initialCargoTypes));
+  const [crewList, setCrewList] = useState<Crew[]>(() => loadFromStorage('crew', initialCrew));
+  const [voyages, setVoyages] = useState<Voyage[]>(() => loadFromStorage('voyages', initialVoyages));
+  const [trackingLogs, setTrackingLogs] = useState<TrackingLog[]>(() => loadFromStorage('tracking', initialTrackingLogs));
+  const [maintenance, setMaintenance] = useState<MaintenanceRecord[]>(() => loadFromStorage('maintenance', initialMaintenance));
 
   useEffect(() => {
-    // Check local storage bypass first
     const savedLocalUser = localStorage.getItem('oceanfleet_local_user');
     if (savedLocalUser) {
       try {
@@ -52,7 +55,6 @@ export default function App() {
           createdAt: new Date().toISOString()
         });
         setAuthLoading(false);
-        checkAndSeedDatabase();
         return;
       } catch (e) {
         console.error(e);
@@ -75,7 +77,6 @@ export default function App() {
               createdAt: new Date().toISOString()
             });
           }
-          await checkAndSeedDatabase();
         } catch (e) {
           console.error("Error fetching user profile:", e);
         }
@@ -88,56 +89,97 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  // Real-time Firestore listeners with robust error handling
-  useEffect(() => {
-    if (!currentUser && !localUser) return;
+  // Save to localStorage whenever data changes
+  useEffect(() => { saveToStorage('vessels', vessels); }, [vessels]);
+  useEffect(() => { saveToStorage('ports', ports); }, [ports]);
+  useEffect(() => { saveToStorage('cargoTypes', cargoTypes); }, [cargoTypes]);
+  useEffect(() => { saveToStorage('crew', crewList); }, [crewList]);
+  useEffect(() => { saveToStorage('voyages', voyages); }, [voyages]);
+  useEffect(() => { saveToStorage('tracking', trackingLogs); }, [trackingLogs]);
+  useEffect(() => { saveToStorage('maintenance', maintenance); }, [maintenance]);
 
-    const unsubVessels = onSnapshot(collection(db, 'vessels'), (snap) => {
-      setVessels(snap.docs.map(d => ({ id: d.id, ...d.data() } as Vessel)));
-    }, (error) => handleFirestoreError(error, OperationType.GET, 'vessels'));
+  // Master Data CRUD handlers
+  const handleAddMasterItem = (type: 'vessels' | 'ports' | 'cargo' | 'crew', data: any) => {
+    const newItem = { ...data, id: 'item_' + Date.now() };
+    if (type === 'vessels') {
+      const updated = [newItem, ...vessels];
+      setVessels(updated);
+      try { addDoc(collection(db, 'vessels'), newItem).catch(() => {}); } catch(e){}
+    } else if (type === 'ports') {
+      const updated = [newItem, ...ports];
+      setPorts(updated);
+      try { addDoc(collection(db, 'ports'), newItem).catch(() => {}); } catch(e){}
+    } else if (type === 'cargo') {
+      const updated = [newItem, ...cargoTypes];
+      setCargoTypes(updated);
+      try { addDoc(collection(db, 'cargoTypes'), newItem).catch(() => {}); } catch(e){}
+    } else if (type === 'crew') {
+      const updated = [newItem, ...crewList];
+      setCrewList(updated);
+      try { addDoc(collection(db, 'crew'), newItem).catch(() => {}); } catch(e){}
+    }
+  };
 
-    const unsubPorts = onSnapshot(collection(db, 'ports'), (snap) => {
-      setPorts(snap.docs.map(d => ({ id: d.id, ...d.data() } as Port)));
-    }, (error) => handleFirestoreError(error, OperationType.GET, 'ports'));
+  const handleUpdateMasterItem = (type: 'vessels' | 'ports' | 'cargo' | 'crew', id: string, data: any) => {
+    if (type === 'vessels') {
+      const updated = vessels.map(v => v.id === id ? { ...v, ...data } : v);
+      setVessels(updated);
+      try { updateDoc(doc(db, 'vessels', id), data).catch(() => {}); } catch(e){}
+    } else if (type === 'ports') {
+      const updated = ports.map(p => p.id === id ? { ...p, ...data } : p);
+      setPorts(updated);
+      try { updateDoc(doc(db, 'ports', id), data).catch(() => {}); } catch(e){}
+    } else if (type === 'cargo') {
+      const updated = cargoTypes.map(c => c.id === id ? { ...c, ...data } : c);
+      setCargoTypes(updated);
+      try { updateDoc(doc(db, 'cargoTypes', id), data).catch(() => {}); } catch(e){}
+    } else if (type === 'crew') {
+      const updated = crewList.map(cr => cr.id === id ? { ...cr, ...data } : cr);
+      setCrewList(updated);
+      try { updateDoc(doc(db, 'crew', id), data).catch(() => {}); } catch(e){}
+    }
+  };
 
-    const unsubCargo = onSnapshot(collection(db, 'cargoTypes'), (snap) => {
-      setCargoTypes(snap.docs.map(d => ({ id: d.id, ...d.data() } as CargoType)));
-    }, (error) => handleFirestoreError(error, OperationType.GET, 'cargoTypes'));
+  const handleDeleteMasterItem = (type: 'vessels' | 'ports' | 'cargo' | 'crew', id: string) => {
+    if (type === 'vessels') {
+      setVessels(vessels.filter(v => v.id !== id));
+      try { deleteDoc(doc(db, 'vessels', id)).catch(() => {}); } catch(e){}
+    } else if (type === 'ports') {
+      setPorts(ports.filter(p => p.id !== id));
+      try { deleteDoc(doc(db, 'ports', id)).catch(() => {}); } catch(e){}
+    } else if (type === 'cargo') {
+      setCargoTypes(cargoTypes.filter(c => c.id !== id));
+      try { deleteDoc(doc(db, 'cargoTypes', id)).catch(() => {}); } catch(e){}
+    } else if (type === 'crew') {
+      setCrewList(crewList.filter(cr => cr.id !== id));
+      try { deleteDoc(doc(db, 'crew', id)).catch(() => {}); } catch(e){}
+    }
+  };
 
-    const unsubCrew = onSnapshot(collection(db, 'crew'), (snap) => {
-      setCrewList(snap.docs.map(d => ({ id: d.id, ...d.data() } as Crew)));
-    }, (error) => handleFirestoreError(error, OperationType.GET, 'crew'));
+  // Voyage CRUD handlers
+  const handleAddVoyage = (data: Partial<Voyage>) => {
+    const newVoy: Voyage = { id: 'voy_' + Date.now(), ...(data as any) };
+    const updated = [newVoy, ...voyages];
+    setVoyages(updated);
+    try { addDoc(collection(db, 'voyages'), newVoy).catch(() => {}); } catch(e){}
+  };
 
-    const unsubVoyages = onSnapshot(collection(db, 'voyages'), (snap) => {
-      setVoyages(snap.docs.map(d => ({ id: d.id, ...d.data() } as Voyage)));
-    }, (error) => handleFirestoreError(error, OperationType.GET, 'voyages'));
+  const handleUpdateVoyage = (id: string, data: Partial<Voyage>) => {
+    const updated = voyages.map(v => v.id === id ? { ...v, ...data } : v);
+    setVoyages(updated);
+    try { updateDoc(doc(db, 'voyages', id), data).catch(() => {}); } catch(e){}
+  };
 
-    const unsubTracking = onSnapshot(collection(db, 'trackingLogs'), (snap) => {
-      setTrackingLogs(snap.docs.map(d => ({ id: d.id, ...d.data() } as TrackingLog)));
-    }, (error) => handleFirestoreError(error, OperationType.GET, 'trackingLogs'));
-
-    const unsubMaint = onSnapshot(collection(db, 'maintenance'), (snap) => {
-      setMaintenance(snap.docs.map(d => ({ id: d.id, ...d.data() } as MaintenanceRecord)));
-    }, (error) => handleFirestoreError(error, OperationType.GET, 'maintenance'));
-
-    return () => {
-      unsubVessels();
-      unsubPorts();
-      unsubCargo();
-      unsubCrew();
-      unsubVoyages();
-      unsubTracking();
-      unsubMaint();
-    };
-  }, [currentUser, localUser]);
+  const handleDeleteVoyage = (id: string) => {
+    setVoyages(voyages.filter(v => v.id !== id));
+    try { deleteDoc(doc(db, 'voyages', id)).catch(() => {}); } catch(e){}
+  };
 
   const handleLogout = async () => {
     localStorage.removeItem('oceanfleet_local_user');
     try {
       await signOut(auth);
-    } catch (e) {
-      // ignore
-    }
+    } catch (e) {}
     window.location.reload();
   };
 
@@ -156,7 +198,6 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
-      {/* Top Navbar */}
       <header className="bg-slate-900/90 backdrop-blur-md border-b border-slate-800 sticky top-0 z-40 px-6 py-4 flex items-center justify-between">
         <div className="flex items-center space-x-3">
           <div className="w-10 h-10 bg-gradient-to-tr from-blue-600 to-cyan-400 rounded-xl flex items-center justify-center shadow-md text-white">
@@ -171,7 +212,7 @@ export default function App() {
         <div className="flex items-center space-x-4">
           <button
             onClick={() => setAiModalOpen(true)}
-            className="hidden sm:flex items-center space-x-2 px-3 py-1.5 bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/40 rounded-xl text-cyan-300 text-xs font-semibold transition"
+            className="hidden sm:flex items-center space-x-2 px-3 py-1.5 bg-cyan-500/25 hover:bg-cyan-500/35 border border-cyan-500/40 rounded-xl text-cyan-300 text-xs font-semibold transition"
           >
             <Sparkles className="w-4 h-4" />
             <span>AI Assistant</span>
@@ -193,9 +234,7 @@ export default function App() {
         </div>
       </header>
 
-      {/* Main Layout */}
       <div className="flex-1 flex flex-col md:flex-row">
-        {/* Sidebar */}
         <aside className="w-full md:w-64 bg-slate-900/60 border-r border-slate-800 p-4 space-y-2 shrink-0">
           <div className="text-[10px] uppercase font-bold text-slate-500 px-3 pb-1 tracking-wider">Menu Utama</div>
           
@@ -260,7 +299,6 @@ export default function App() {
           </button>
         </aside>
 
-        {/* Content Area */}
         <main className="flex-1 p-6 md:p-8 max-w-7xl mx-auto w-full">
           {activeTab === 'dashboard' && (
             <DashboardView 
@@ -277,6 +315,9 @@ export default function App() {
               ports={ports} 
               cargoTypes={cargoTypes} 
               crewList={crewList} 
+              onAdd={handleAddMasterItem}
+              onUpdate={handleUpdateMasterItem}
+              onDelete={handleDeleteMasterItem}
             />
           )}
           {activeTab === 'transactions' && (
@@ -285,6 +326,9 @@ export default function App() {
               vessels={vessels} 
               ports={ports} 
               cargoTypes={cargoTypes} 
+              onAddVoyage={handleAddVoyage}
+              onUpdateVoyage={handleUpdateVoyage}
+              onDeleteVoyage={handleDeleteVoyage}
             />
           )}
           {activeTab === 'tracking' && (
@@ -309,7 +353,6 @@ export default function App() {
         </main>
       </div>
 
-      {/* AI Assistant Modal */}
       <AiAssistantModal 
         isOpen={aiModalOpen} 
         onClose={() => setAiModalOpen(false)} 

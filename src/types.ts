@@ -46,7 +46,7 @@ export interface Crew {
 export interface Voyage {
   id: string;
   noVoyage: string;
-  vesselId: string;
+  vesselId?: string;
   vesselName: string;
   origin: string;
   destination: string;
